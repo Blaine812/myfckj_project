@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>影刀社区数据分析看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary-color: #5B7FFF;
+            --success-color: #00D4AA;
+            --warning-color: #FF9F43;
+            --danger-color: #FF6B6B;
+            --info-color: #54A0FF;
+            --bg-color: #F5F7FA;
+            --card-bg: #FFFFFF;
+            --text-primary: #2D3748;
+            --text-secondary: #718096;
+            --border-color: #E2E8F0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        header h1 { font-size: 24px; font-weight: 600; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .mode-badge { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .mode-realtime { background: rgba(0,212,170,0.1); color: var(--success-color); }
+        .mode-polling { background: rgba(255,159,67,0.1); color: var(--warning-color); }
+        .refresh-btn {
+            padding: 8px 16px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .refresh-btn:hover { background: #4a6cf7; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .stat-icon {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+            font-size: 20px;
+        }
+        .stat-value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+        .stat-label { font-size: 13px; color: var(--text-secondary); }
+        .stat-subtitle { font-size: 11px; color: var(--text-secondary); opacity: 0.7; }
+        .stat-blue .stat-icon { background: rgba(91,127,255,0.1); color: var(--primary-color); }
+        .stat-purple .stat-icon { background: rgba(156,39,176,0.1); color: #9C27B0; }
+        .stat-orange .stat-icon { background: rgba(255,159,67,0.1); color: var(--warning-color); }
+        .stat-green .stat-icon { background: rgba(0,212,170,0.1); color: var(--success-color); }
+        .stat-red .stat-icon { background: rgba(255,107,107,0.1); color: var(--danger-color); }
+        .stat-info .stat-icon { background: rgba(84,160,255,0.1); color: var(--info-color); }
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .chart-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .chart-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+        .chart-container { position: relative; height: 250px; }
+        .conclusions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .conclusion-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 4px solid var(--primary-color);
+        }
+        .conclusion-card.conclusion-2 { border-left-color: var(--warning-color); }
+        .conclusion-card.conclusion-3 { border-left-color: var(--danger-color); }
+        .conclusion-card.conclusion-4 { border-left-color: var(--success-color); }
+        .conclusion-card h4 {
+            font-size: 14px; font-weight: 600;
+            margin-bottom: 8px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .conclusion-card h4 .badge {
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            font-size: 12px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .conclusion-card.conclusion-2 h4 .badge { background: var(--warning-color); }
+        .conclusion-card.conclusion-3 h4 .badge { background: var(--danger-color); }
+        .conclusion-card.conclusion-4 h4 .badge { background: var(--success-color); }
+        .conclusion-card p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+        .table-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .table-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+        .table-wrapper { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .data-table th { font-weight: 600; color: var(--text-secondary); background: var(--bg-color); }
+        .data-table tbody tr:hover { background: rgba(91,127,255,0.05); }
+        .empty-state { text-align: center; padding: 40px; color: var(--text-secondary); }
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+        }
+        .loading-spinner {
+            width: 40px; height: 40px;
+            border: 4px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-message {
+            background: rgba(255,107,107,0.1);
+            color: var(--danger-color);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        @media (max-width: 768px) {
+            .container { padding: 12px; }
+            header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .charts-grid { grid-template-columns: 1fr; }
+            .conclusions-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <div class="container" id="mainContent" style="display:none;">
+        <header>
+            <h1>影刀社区数据分析看板</h1>
+            <div class="header-right">
+                <span class="mode-badge mode-polling" id="modeBadge">轮询模式</span>
+                <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">
+                    <span>🔄</span>
+                    <span>刷新数据</span>
+                </button>
+            </div>
+        </header>
+
+        <div id="errorMessage" class="error-message" style="display:none;"></div>
+
+        <div class="stats-grid">
+            <div class="stat-card stat-blue">
+                <div class="stat-icon">📊</div>
+                <div class="stat-value" id="statTotal">0</div>
+                <div class="stat-label">帖子总数</div>
+                <div class="stat-subtitle">统计周期内</div>
+            </div>
+            <div class="stat-card stat-purple">
+                <div class="stat-icon">👁️</div>
+                <div class="stat-value" id="statViews">0</div>
+                <div class="stat-label">累计浏览量</div>
+                <div class="stat-subtitle">所有帖子合计</div>
+            </div>
+            <div class="stat-card stat-orange">
+                <div class="stat-icon">📈</div>
+                <div class="stat-value" id="statAvgViews">0</div>
+                <div class="stat-label">平均浏览量</div>
+                <div class="stat-subtitle">单篇帖子平均</div>
+            </div>
+            <div class="stat-card stat-green">
+                <div class="stat-icon">👥</div>
+                <div class="stat-value" id="statAuthors">0</div>
+                <div class="stat-label">活跃作者</div>
+                <div class="stat-subtitle">去重统计</div>
+            </div>
+            <div class="stat-card stat-red">
+                <div class="stat-icon">🔥</div>
+                <div class="stat-value" id="statHotRatio">0%</div>
+                <div class="stat-label">热门占比</div>
+                <div class="stat-subtitle">前10%帖子贡献</div>
+            </div>
+            <div class="stat-card stat-info">
+                <div class="stat-icon">📅</div>
+                <div class="stat-value" id="statDays">0</div>
+                <div class="stat-label">数据跨度</div>
+                <div class="stat-subtitle">天数</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>📁 问题分类分布</h3>
+                <div class="chart-container"><canvas id="categoryPieChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>📊 各分类平均浏览量</h3>
+                <div class="chart-container"><canvas id="categoryBarChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>⏰ 按小时发帖量与浏览量</h3>
+                <div class="chart-container"><canvas id="timeChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>💬 情感倾向分布</h3>
+                <div class="chart-container"><canvas id="sentimentBarChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="conclusions-grid">
+            <div class="conclusion-card conclusion-1">
+                <h4><span class="badge">1</span> <span id="conclusion1Title">结论一：元素定位与网页自动化是最大痛点</span></h4>
+                <p id="conclusion1Desc">元素定位与识别问题占比较高，网页自动化与浏览器操作问题也是用户核心困扰，建议优先完善相关文档和教程。</p>
+            </div>
+            <div class="conclusion-card conclusion-2">
+                <h4><span class="badge">2</span> <span id="conclusion2Title">结论二：社区整体情绪偏中性/积极</span></h4>
+                <p id="conclusion2Desc">积极情绪占比最高，中性次之，消极情绪最少。社区整体氛围健康，用户反馈以正向为主。</p>
+            </div>
+            <div class="conclusion-card conclusion-3">
+                <h4><span class="badge">3</span> <span id="conclusion3Title">结论三：精细化标签显著提高浏览效果</span></h4>
+                <p id="conclusion3Desc">标签使用规范的帖子获得更多关注，热门帖子平均浏览量显著高于普通帖子。</p>
+            </div>
+            <div class="conclusion-card conclusion-4">
+                <h4><span class="badge">4</span> <span id="conclusion4Title">结论四：AI功能与AI话题受关注度高</span></h4>
+                <p id="conclusion4Desc">AI相关话题与智能体功能上线后讨论量上升，用户对AI功能抱有较高期待。</p>
+            </div>
+        </div>
+
+        <div class="table-card">
+            <h3>📋 详细数据列表</h3>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>ID</th><th>标题</th><th>分类</th><th>浏览量</th><th>情感倾向</th><th>发布时间</th></tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr><td colspan="6" class="empty-state">📭 暂无数据</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="tableControls" style="margin-top:16px;text-align:center;display:none;">
+                <button id="btnShow20" onclick="showTop20()" style="padding:8px 16px;background:var(--primary-color);color:white;border:none;border-radius:8px;cursor:pointer;margin-right:8px;">显示前20条</button>
+                <button id="btnShowAll" onclick="showAllData()" style="padding:8px 16px;background:var(--success-color);color:white;border:none;border-radius:8px;cursor:pointer;display:none;">查看全部数据</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://gvdlqqtdtdqdahzfvjra.supabase.co";
+        const SUPABASE_KEY = "YOUR_ANON_KEY_HERE"; // 请替换为你的Supabase anon key
+        const TABLE_NAME = "影刀";
+
+        let supabaseClient = null;
+        let charts = {};
+        let isRealtimeMode = false;
+        let pollingInterval = null;
+        let currentData = [];
+        let displayMode = 'top10'; // 'top10', 'top20'
+        const CONCLUSION_TABLE = "结论数据表"; // 结论数据表名
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+            document.getElementById('mainContent').style.display = show ? 'none' : 'block';
+        }
+
+        function showError(message) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = message;
+            el.style.display = message ? 'block' : 'none';
+        }
+
+        function extractNumber(value) {
+            if (value === null || value === undefined) return 0;
+            const str = String(value);
+            const match = str.match(/[\d,.]+/);
+            if (match) {
+                return parseFloat(match[0].replace(/,/g, '')) || 0;
+            }
+            return parseFloat(str) || 0;
+        }
+
+        function updateStats(data) {
+            const total = data.length;
+            const totalViews = data.reduce((sum, item) => sum + extractNumber(item.浏览量), 0);
+            const avgViews = total > 0 ? (totalViews / total).toFixed(1) : '0';
+            const authors = new Set(data.map(item => item.作者)).size;
+            
+            document.getElementById('statTotal').textContent = total.toLocaleString();
+            document.getElementById('statViews').textContent = totalViews.toLocaleString();
+            document.getElementById('statAvgViews').textContent = avgViews;
+            document.getElementById('statAuthors').textContent = authors.toString();
+            
+            if (total > 0) {
+                const sorted = [...data].sort((a, b) => extractNumber(b.浏览量) - extractNumber(a.浏览量));
+                const top10 = Math.ceil(total * 0.1);
+                const topViews = sorted.slice(0, top10).reduce((sum, item) => sum + extractNumber(item.浏览量), 0);
+                const hotRatio = totalViews > 0 ? ((topViews / totalViews) * 100).toFixed(1) : '0';
+                document.getElementById('statHotRatio').textContent = hotRatio + '%';
+            }
+            
+            const dates = data.map(item => item.发布时间 || item.时间).filter(Boolean);
+            if (dates.length > 0) {
+                const minDate = new Date(Math.min(...dates.map(d => new Date(d).getTime())));
+                const maxDate = new Date(Math.max(...dates.map(d => new Date(d).getTime())));
+                const days = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1;
+                document.getElementById('statDays').textContent = days + '天';
+            }
+        }
+
+        function getCategoryName(cat) {
+            if (!cat) return '未知';
+            const str = String(cat);
+            if (str === '1') {
+                return '元素定位与识别问题';
+            }
+            const cleaned = str.replace(/^\d+\.?\s*/, '');
+            if (!cleaned || cleaned.trim() === '') {
+                return '未知';
+            }
+            return cleaned;
+        }
+
+        function updatePieChart(data) {
+            const counts = {};
+            data.forEach(item => {
+                const cat = getCategoryName(item.问题分类 || item.分类);
+                counts[cat] = (counts[cat] || 0) + 1;
+            });
+
+            if (charts.pie) charts.pie.destroy();
+            charts.pie = new Chart(document.getElementById('categoryPieChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(counts),
+                    datasets: [{
+                        data: Object.values(counts),
+                        backgroundColor: ['#5B7FFF', '#9C27B0', '#FF9F43', '#00D4AA', '#FF6B6B', '#54A0FF'],
+                        borderWidth: 0,
+                        cutout: '60%'
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        function updateBarChart(data) {
+            const views = {};
+            const counts = {};
+            data.forEach(item => {
+                const cat = getCategoryName(item.问题分类 || item.分类);
+                views[cat] = (views[cat] || 0) + extractNumber(item.浏览量);
+                counts[cat] = (counts[cat] || 0) + 1;
+            });
+
+            const labels = Object.keys(views);
+            const avgViews = labels.map(cat => (views[cat] / counts[cat]).toFixed(0));
+
+            if (charts.bar) charts.bar.destroy();
+            charts.bar = new Chart(document.getElementById('categoryBarChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: avgViews,
+                        backgroundColor: '#5B7FFF',
+                        borderRadius: 6
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        function updateTimeChart(data) {
+            const hourData = {};
+            for (let i = 0; i < 24; i++) hourData[i] = { count: 0, views: 0 };
+
+            data.forEach(item => {
+                const time = item.发布时间;
+                if (time) {
+                    const date = new Date(time);
+                    const hour = date.getHours();
+                    if (hour >= 0 && hour < 24) {
+                        hourData[hour].count++;
+                        hourData[hour].views += extractNumber(item.浏览量);
+                    }
+                }
+            });
+
+            const labels = Object.keys(hourData).map(h => `${h}:00`);
+            const counts = Object.values(hourData).map(d => d.count);
+            const avgViews = Object.values(hourData).map(d => d.count > 0 ? (d.views / d.count).toFixed(0) : 0);
+
+            if (charts.time) charts.time.destroy();
+            charts.time = new Chart(document.getElementById('timeChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: '发帖量', data: counts, backgroundColor: '#54A0FF', yAxisID: 'y' },
+                        { label: '平均浏览量', data: avgViews, type: 'line', borderColor: '#FF9F43', yAxisID: 'y1', tension: 0.4 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true }, y1: { beginAtZero: true, position: 'right', grid: { display: false } } } }
+            });
+        }
+
+        function updateSentimentChart(data) {
+            const counts = { '积极': 0, '中性': 0, '消极': 0 };
+            data.forEach(item => {
+                const s = item.情感分类 || item.情感倾向 || item.情绪 || '中性';
+                counts[s] = (counts[s] || 0) + 1;
+            });
+
+            if (charts.sentiment) charts.sentiment.destroy();
+            charts.sentiment = new Chart(document.getElementById('sentimentBarChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(counts),
+                    datasets: [{
+                        data: Object.values(counts),
+                        backgroundColor: ['#00D4AA', '#54A0FF', '#FF6B6B'],
+                        borderRadius: 6
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        function truncateText(text, maxLength) {
+            if (!text) return '-';
+            text = String(text);
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        }
+
+        function updateTable(data) {
+            currentData = data;
+            const tbody = document.getElementById('tableBody');
+            const controls = document.getElementById('tableControls');
+            const btnShow20 = document.getElementById('btnShow20');
+            const btnShowAll = document.getElementById('btnShowAll');
+            
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">📭 暂无数据</td></tr>';
+                controls.style.display = 'none';
+                return;
+            }
+
+            const sortedData = [...data].sort((a, b) => extractNumber(b.浏览量) - extractNumber(a.浏览量));
+            
+            let displayData;
+            if (displayMode === 'top10') {
+                displayData = sortedData.slice(0, 10);
+                btnShow20.style.display = 'inline-block';
+                btnShowAll.style.display = 'none';
+            } else if (displayMode === 'top20') {
+                displayData = sortedData.slice(0, 20);
+                btnShow20.style.display = 'none';
+                btnShowAll.style.display = 'inline-block';
+            }
+
+            tbody.innerHTML = displayData.map((item, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${item.帖子标题 || item.标题 || item.title || ''}">${truncateText(item.帖子标题 || item.标题 || item.title, 30)}</td>
+                    <td><span style="padding:4px 8px;border-radius:12px;font-size:11px;${getCategoryStyle(item.问题分类 || item.分类)}">${getCategoryName(item.问题分类 || item.分类)}</span></td>
+                    <td>${extractNumber(item.浏览量).toLocaleString()}</td>
+                    <td><span style="padding:4px 8px;border-radius:12px;font-size:11px;${getSentimentStyle(item.情感分类 || item.情感倾向 || item.情绪)}">${item.情感分类 || item.情感倾向 || item.情绪 || '中性'}</span></td>
+                    <td>${formatTime(item.发布时间 || item.时间)}</td>
+                </tr>
+            `).join('');
+
+            controls.style.display = 'block';
+            
+            const infoText = displayMode === 'top10' ? `显示浏览量前10条，共 ${data.length} 条` : `显示浏览量前20条，共 ${data.length} 条`;
+            tbody.innerHTML += `<tr><td colspan="6" style="text-align:center;color:var(--text-secondary)">${infoText}</td></tr>`;
+        }
+
+        function showTop20() {
+            displayMode = 'top20';
+            updateTable(currentData);
+        }
+
+        function showAllData() {
+            // 将数据存储到localStorage，供新页面使用
+            localStorage.setItem('allData', JSON.stringify(currentData));
+            window.open('all_data.html', '_blank');
+        }
+
+        function getSentimentStyle(s) {
+            switch(s) {
+                case '积极': return 'background:rgba(0,212,170,0.1);color:#00D4AA';
+                case '消极': return 'background:rgba(255,107,107,0.1);color:#FF6B6B';
+                default: return 'background:rgba(84,160,255,0.1);color:#54A0FF';
+            }
+        }
+
+        const categoryColors = {
+            '元素定位与识别问题': 'background:#E3F2FD;color:#1976D2;font-weight:bold',
+            '定时任务、多账号与性能优化': 'background:#FCE4EC;color:#C2185B;font-weight:bold',
+            'Windows应用、桌面软件与手机自动化': 'background:#FFF3E0;color:#E65100;font-weight:bold',
+            'AI工作流、智能体与自动化结合': 'background:#E8F5E9;color:#2E7D32;font-weight:bold',
+            '指令逻辑、流程控制与变量处理': 'background:#FFEBEE;color:#C62828;font-weight:bold',
+            '网页自动化与浏览器兼容性问题': 'background:#F3E5F5;color:#7B1FA2;font-weight:bold',
+            'Excel与数据处理问题': 'background:#EFEBE9;color:#5D4037;font-weight:bold',
+            '其他问题': 'background:#F5F5F5;color:#424242;font-weight:bold'
+        };
+
+        function getCategoryStyle(cat) {
+            const cleanedCat = getCategoryName(cat);
+            return categoryColors[cleanedCat] || 'background:rgba(148,159,177,0.1);color:#949FB1';
+        }
+
+        function formatTime(time) {
+            if (!time) return '-';
+            try {
+                return new Date(time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            } catch { return time; }
+        }
+
+        async function fetchConclusions() {
+            try {
+                const { data, error } = await supabaseClient.from(CONCLUSION_TABLE).select('*').limit(1);
+                if (error) {
+                    console.log('获取结论数据失败:', error.message);
+                    return;
+                }
+                
+                if (data && data.length > 0) {
+                    const row = data[0];
+                    // 更新结论1
+                    if (row['结论1标题']) {
+                        document.getElementById('conclusion1Title').textContent = row['结论1标题'];
+                    }
+                    if (row['结论1详情']) {
+                        document.getElementById('conclusion1Desc').textContent = row['结论1详情'];
+                    }
+                    // 更新结论2
+                    if (row['结论2标题']) {
+                        document.getElementById('conclusion2Title').textContent = row['结论2标题'];
+                    }
+                    if (row['结论2详情']) {
+                        document.getElementById('conclusion2Desc').textContent = row['结论2详情'];
+                    }
+                    // 更新结论3
+                    if (row['结论3标题']) {
+                        document.getElementById('conclusion3Title').textContent = row['结论3标题'];
+                    }
+                    if (row['结论3详情']) {
+                        document.getElementById('conclusion3Desc').textContent = row['结论3详情'];
+                    }
+                    // 更新结论4
+                    if (row['结论4标题']) {
+                        document.getElementById('conclusion4Title').textContent = row['结论4标题'];
+                    }
+                    if (row['结论4详情']) {
+                        document.getElementById('conclusion4Desc').textContent = row['结论4详情'];
+                    }
+                }
+            } catch (err) {
+                console.log('获取结论数据失败:', err.message);
+            }
+        }
+
+        async function fetchData() {
+            showLoading(true);
+            showError('');
+
+            try {
+                if (!supabaseClient) {
+                    throw new Error('Supabase客户端未初始化');
+                }
+
+                const { data, error } = await supabaseClient.from(TABLE_NAME).select('*').order('id');
+                if (error) throw error;
+
+                updateStats(data);
+                updatePieChart(data);
+                updateBarChart(data);
+                updateTimeChart(data);
+                updateSentimentChart(data);
+                updateTable(data);
+                
+                // 获取结论数据
+                await fetchConclusions();
+                
+                return data;
+            } catch (err) {
+                console.error('获取数据失败:', err);
+                showError('获取数据失败: ' + (err.message || '未知错误'));
+                return [];
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function refreshData() {
+            fetchData();
+        }
+
+        async function initRealtime() {
+            try {
+                const channel = supabaseClient.channel('public:' + TABLE_NAME);
+                await channel.on('postgres_changes', { event: '*', schema: 'public', table: TABLE_NAME }, () => fetchData()).subscribe();
+                
+                isRealtimeMode = true;
+                document.getElementById('modeBadge').textContent = '实时模式';
+                document.getElementById('modeBadge').className = 'mode-badge mode-realtime';
+            } catch {
+                startPolling();
+            }
+        }
+
+        function startPolling() {
+            isRealtimeMode = false;
+            document.getElementById('modeBadge').textContent = '轮询模式';
+            document.getElementById('modeBadge').className = 'mode-badge mode-polling';
+            
+            if (pollingInterval) clearInterval(pollingInterval);
+            pollingInterval = setInterval(fetchData, 5000);
+        }
+
+        async function loadSupabaseSDK() {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+                script.onload = () => {
+                    console.log('Supabase SDK 加载成功');
+                    resolve();
+                };
+                script.onerror = () => {
+                    reject(new Error('Supabase SDK 加载失败'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        async function init() {
+            try {
+                showLoading(true);
+                
+                await loadSupabaseSDK();
+                
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                console.log('Supabase客户端初始化成功');
+                
+                await fetchData();
+                initRealtime();
+            } catch (err) {
+                console.error('初始化失败:', err);
+                showError('初始化失败: ' + (err.message || '未知错误'));
+                showLoading(false);
+                document.getElementById('mainContent').style.display = 'block';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+        window.addEventListener('beforeunload', () => { if (pollingInterval) clearInterval(pollingInterval); });
+    </script>
+</body>
+</html>

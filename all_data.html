@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全部数据 - 影刀社区数据分析</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary-color: #5B7FFF;
+            --success-color: #00D4AA;
+            --warning-color: #FF9F43;
+            --danger-color: #FF6B6B;
+            --info-color: #54A0FF;
+            --bg-color: #F5F7FA;
+            --card-bg: #FFFFFF;
+            --text-primary: #2D3748;
+            --text-secondary: #718096;
+            --border-color: #E2E8F0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        header h1 { font-size: 24px; font-weight: 600; }
+        .back-btn {
+            padding: 8px 16px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .back-btn:hover { background: #4a6cf7; }
+        .stats-bar {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+        .stats-bar span { font-size: 14px; color: var(--text-secondary); }
+        .stats-bar strong { color: var(--primary-color); }
+        .table-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .table-wrapper { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .data-table th { font-weight: 600; color: var(--text-secondary); background: var(--bg-color); position: sticky; top: 0; }
+        .data-table tbody tr:hover { background: rgba(91,127,255,0.05); }
+        .empty-state { text-align: center; padding: 40px; color: var(--text-secondary); }
+        .pagination {
+            margin-top: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+        .pagination button {
+            padding: 8px 16px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .pagination button:disabled {
+            background: var(--border-color);
+            cursor: not-allowed;
+        }
+        .pagination span { font-size: 14px; color: var(--text-secondary); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 全部数据列表</h1>
+            <a href="index.html" class="back-btn">← 返回看板</a>
+        </header>
+
+        <div class="stats-bar">
+            <span>总数据量: <strong id="totalCount">0</strong> 条</span>
+            <span>当前页: <strong id="currentPage">1</strong> / <strong id="totalPages">1</strong></span>
+        </div>
+
+        <div class="table-card">
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>ID</th><th>标题</th><th>分类</th><th>浏览量</th><th>情感倾向</th><th>发布时间</th></tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr><td colspan="6" class="empty-state">📭 暂无数据</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <button id="prevBtn" onclick="prevPage()">上一页</button>
+                <span id="pageInfo">第 1 页</span>
+                <button id="nextBtn" onclick="nextPage()">下一页</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let currentPage = 1;
+        const pageSize = 50;
+
+        const categoryColors = {
+            '元素定位与识别问题': 'background:#E3F2FD;color:#1976D2;font-weight:bold',
+            '定时任务、多账号与性能优化': 'background:#FCE4EC;color:#C2185B;font-weight:bold',
+            'Windows应用、桌面软件与手机自动化': 'background:#FFF3E0;color:#E65100;font-weight:bold',
+            'AI工作流、智能体与自动化结合': 'background:#E8F5E9;color:#2E7D32;font-weight:bold',
+            '指令逻辑、流程控制与变量处理': 'background:#FFEBEE;color:#C62828;font-weight:bold',
+            '网页自动化与浏览器兼容性问题': 'background:#F3E5F5;color:#7B1FA2;font-weight:bold',
+            'Excel与数据处理问题': 'background:#EFEBE9;color:#5D4037;font-weight:bold',
+            '其他问题': 'background:#F5F5F5;color:#424242;font-weight:bold'
+        };
+
+        function extractNumber(value) {
+            if (value === null || value === undefined) return 0;
+            const str = String(value);
+            const match = str.match(/[\d,.]+/);
+            if (match) {
+                return parseFloat(match[0].replace(/,/g, '')) || 0;
+            }
+            return parseFloat(str) || 0;
+        }
+
+        function getCategoryName(cat) {
+            if (!cat) return '未知';
+            const str = String(cat);
+            if (str === '1') {
+                return '元素定位与识别问题';
+            }
+            const cleaned = str.replace(/^\d+\.?\s*/, '');
+            if (!cleaned || cleaned.trim() === '') {
+                return '未知';
+            }
+            return cleaned;
+        }
+
+        function getCategoryStyle(cat) {
+            const cleanedCat = getCategoryName(cat);
+            return categoryColors[cleanedCat] || 'background:rgba(148,159,177,0.1);color:#949FB1';
+        }
+
+        function getSentimentStyle(s) {
+            switch(s) {
+                case '积极': return 'background:rgba(0,212,170,0.1);color:#00D4AA';
+                case '消极': return 'background:rgba(255,107,107,0.1);color:#FF6B6B';
+                default: return 'background:rgba(84,160,255,0.1);color:#54A0FF';
+            }
+        }
+
+        function truncateText(text, maxLength) {
+            if (!text) return '-';
+            text = String(text);
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        }
+
+        function formatTime(time) {
+            if (!time) return '-';
+            try {
+                return new Date(time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            } catch { return time; }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const sortedData = [...allData].sort((a, b) => extractNumber(b.浏览量) - extractNumber(a.浏览量));
+            
+            const totalPages = Math.ceil(sortedData.length / pageSize);
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            const pageData = sortedData.slice(start, end);
+
+            tbody.innerHTML = pageData.map((item, i) => `
+                <tr>
+                    <td>${start + i + 1}</td>
+                    <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${item.帖子标题 || item.标题 || ''}">${truncateText(item.帖子标题 || item.标题, 50)}</td>
+                    <td><span style="padding:4px 8px;border-radius:12px;font-size:11px;${getCategoryStyle(item.问题分类 || item.分类)}">${getCategoryName(item.问题分类 || item.分类)}</span></td>
+                    <td>${extractNumber(item.浏览量).toLocaleString()}</td>
+                    <td><span style="padding:4px 8px;border-radius:12px;font-size:11px;${getSentimentStyle(item.情感分类 || item.情感倾向 || item.情绪)}">${item.情感分类 || item.情感倾向 || item.情绪 || '中性'}</span></td>
+                    <td>${formatTime(item.发布时间)}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('totalCount').textContent = sortedData.length;
+            document.getElementById('currentPage').textContent = currentPage;
+            document.getElementById('totalPages').textContent = totalPages;
+            document.getElementById('pageInfo').textContent = `第 ${currentPage} / ${totalPages} 页`;
+            document.getElementById('prevBtn').disabled = currentPage <= 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderTable();
+            }
+        }
+
+        function nextPage() {
+            const totalPages = Math.ceil(allData.length / pageSize);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderTable();
+            }
+        }
+
+        function init() {
+            const dataStr = localStorage.getItem('allData');
+            if (dataStr) {
+                allData = JSON.parse(dataStr);
+                renderTable();
+            } else {
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="6" class="empty-state">📭 未找到数据，请从看板页面进入</td></tr>';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
